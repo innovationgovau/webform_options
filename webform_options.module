@@ -1,0 +1,49 @@
+<?php
+  drupal_add_js(drupal_get_path('module','webform_options') . '/webform_options.js','file');
+function webform_options_webform_select_options_info() {
+        $items = array();
+ 
+        if (module_exists('views')) {
+                $viewNames = views_get_all_views();
+                foreach($viewNames as $viewName) {
+                 if($viewName->disabled==0) {
+                    $viewName = $viewName->name;
+                    $items[$viewName] = array(
+                         'title' => $viewName,
+                         'options callback' => '_webform_options_get_view_options',
+                          'options arguments' => $viewName,
+                 );
+                 }
+              }
+        }
+    return $items;
+  }
+ 
+function _webform_options_get_view_options() {
+  $args = func_get_args();
+  $view = views_get_view($args[3], true);
+  $view->execute();
+  $items = array();
+  
+  foreach ($view->result as $item) {
+    $node = node_load($item->nid);
+    $field = field_view_field('node', $node, 'field_shipping_address');
+    $address = $field['0']['#address'];
+    $address_org = $address['organisation_name'];
+    $address_st = $address['thoroughfare'];
+    $address_city = $address['locality'];
+    $address_state = $address['administrative_area'];
+    $address_code = $address['postal_code'];
+    $address_display = $address_org . ', ' . $address_st . ', ' . $address_city . ', ' . $address_state . ' ' . $address_code;
+    $address_key = $address_org . '<br />'. $address_st . '<br />' . $address_city . '<br />' . $address_state . '<br />' . $address_code;
+    $items[$address_key] = $address_display;
+  }
+  return $items;
+}
+ 
+function webform_options_views_api() {
+  return array(
+    'api' => 3,
+    'path' => drupal_get_path('module', 'webform_options'),
+  );
+}
