@@ -1,27 +1,49 @@
 <?php
-  drupal_add_js(drupal_get_path('module','webform_options') . '/webform_options.js','file');
+
+/* Add the webform_options javascript to Drupal */
+drupal_add_js(drupal_get_path('module','webform_options') . '/webform_options.js','file');
+
+/**
+* Implements hook_webform_select_options_info()
+*
+* Provide a select options component to Webform. The values are 
+* populated via a call on of any given number of callback functions, depending on which view is used.
+* These callbacks return an array of nodes.
+*
+* @author Jesse Boyd
+*/
+
 function webform_options_webform_select_options_info() {
-        $items = array();
- 
-        if (module_exists('views')) {
-                $viewNames = views_get_all_views();
-                foreach($viewNames as $viewName) {
-                 if($viewName->disabled==0) {
-                    $viewName = $viewName->name;
-                    $items[$viewName] = array(
-                         'title' => $viewName,
-                         'options callback' => '_webform_options_get_view_options',
-                          'options arguments' => $viewName,
-                 );
-                 }
-              }
-        }
-    return $items;
+  $items = array();
+
+  if (module_exists('views')) {
+    $views = views_get_all_views();
+    foreach($views as $view) {
+     if($view->disabled == 0) {
+      $view_name = $view->name;
+      if($view_name == 'ambassadors_list') {
+        $items[$view_name] = array(
+          'title' => $view_name,
+          'options callback' => '_ambassadors_webform_options_get_view_options',
+        );
+      } else if ($view_name == 'shipping_addresses') {
+        $items[$view_name] = array(
+          'title' => $view_name,
+          'options callback' => '_shipping_addresses_webform_options_get_view_options',
+        );
+      }
+    }
   }
- 
-function _webform_options_get_view_options() {
-  $args = func_get_args();
-  $view = views_get_view($args[3], true);
+}
+return $items;
+}
+
+/** 
+* Custom callback functions to return shipping addresses in the correct format.
+*/
+
+function _shipping_addresses_webform_options_get_view_options() {
+  $view = views_get_view('shipping_addresses', true);
   $view->execute();
   $items = array();
   
@@ -40,10 +62,37 @@ function _webform_options_get_view_options() {
   }
   return $items;
 }
- 
+
+function _ambassadors_webform_options_get_view_options() {
+  $view = views_get_view('ambassadors_list', true);
+  $view->set_items_per_page(0); // Ensure any paging is turned off.
+  $view->execute();
+  $items = array();
+
+  foreach ($view->result as $item) {
+    $full_node = node_load($item->nid);
+    $name = field_get_items('node', $full_node, 'field_ambassador_name');
+    $field = field_view_value('node', $full_node, 'field_ambassador_name', $name[0]);
+    // Ensure that empty fields are not displayed.
+    if (!empty($field['#markup'])) {
+      $items[$item->nid] = render($field);
+    }
+  }
+  sort($items);
+
+  // Add an extra item for 'Unsure'. We do this here rather than in the Forms API because the system will not recognise it as a legitimate item and instead use the first row returned by the view.
+  array_unshift($items, t('Unsure - like to discuss'));
+
+  return $items;
+}
+
+/**
+* Implements hook_views_api()
+*/
+
 function webform_options_views_api() {
   return array(
     'api' => 3,
     'path' => drupal_get_path('module', 'webform_options'),
-  );
+    );
 }
